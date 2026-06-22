@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>片單 Watchlist</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;500&family=Noto+Serif+TC:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0d0d;
+    --surface: #141414;
+    --surface2: #1a1a1a;
+    --border: #2a2a2a;
+    --border-hover: #3d3d3d;
+    --text: #e8e4dc;
+    --text-muted: #6b6660;
+    --text-dim: #9a9490;
+    --accent: #c8a96e;
+    --accent-dim: #7a6540;
+    --watched-bg: #0f1a12;
+    --watched-border: #1e3322;
+    --watched-text: #4a7a5a;
+    --top-accent: #8b6fcb;
+  }
+
+  html { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-weight: 300; }
+
+  body { min-height: 100vh; }
+
+  .grain {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    opacity: 0.4;
+  }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 2rem; position: relative; z-index: 1; }
+
+  header { padding: 4rem 0 2.5rem; border-bottom: 1px solid var(--border); margin-bottom: 2.5rem; }
+
+  .header-top { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+
+  .title-zh {
+    font-family: 'Noto Serif TC', serif;
+    font-size: clamp(2.2rem, 5vw, 3.5rem);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .title-en {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(1rem, 2vw, 1.4rem);
+    font-weight: 400;
+    font-style: italic;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+  }
+
+  .subtitle { margin-top: 0.75rem; font-size: 0.78rem; color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; }
+
+  .controls { margin-bottom: 2rem; display: flex; flex-direction: column; gap: 1rem; }
+
+  .search-wrap { position: relative; max-width: 360px; }
+  .search-wrap input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 300;
+    padding: 0.6rem 1rem 0.6rem 2.2rem;
+    outline: none;
+    transition: border-color 0.2s;
+    letter-spacing: 0.03em;
+  }
+  .search-wrap input::placeholder { color: var(--text-muted); }
+  .search-wrap input:focus { border-color: var(--accent-dim); }
+  .search-icon {
+    position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%);
+    width: 14px; height: 14px; opacity: 0.4;
+    fill: none; stroke: var(--text); stroke-width: 2; stroke-linecap: round;
+  }
+
+  .filter-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+  .pill {
+    font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 4px 14px; border: 1px solid var(--border);
+    background: transparent; color: var(--text-muted);
+    cursor: pointer; border-radius: 1px;
+    transition: all 0.15s; white-space: nowrap;
+    font-family: 'Inter', sans-serif; font-weight: 400;
+  }
+  .pill:hover { border-color: var(--border-hover); color: var(--text-dim); }
+  .pill.active { border-color: var(--accent); color: var(--accent); }
+
+  .pill-watched { border-color: var(--watched-border); color: var(--watched-text); }
+  .pill-watched:hover { border-color: var(--watched-text); }
+  .pill-watched.active { border-color: var(--watched-text); color: var(--watched-text); background: var(--watched-bg); }
+
+  .stats { font-size: 0.72rem; color: var(--text-muted); letter-spacing: 0.08em; padding: 0 2px; margin-top: 0.5rem; }
+
+  section { margin-bottom: 2.5rem; }
+
+  .section-header {
+    display: flex; align-items: center; gap: 0.8rem;
+    margin-bottom: 1rem; padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-name { font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted); font-weight: 500; }
+  .section-count { font-size: 0.65rem; color: var(--text-muted); opacity: 0.5; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+  }
+
+  .card {
+    background: var(--surface);
+    padding: 0.9rem 1rem;
+    transition: background 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
+  .card:hover { background: var(--surface2); }
+
+  .card.is-watched { background: var(--watched-bg); }
+  .card.is-watched:hover { background: #111c14; }
+  .card.is-watched .card-zh { opacity: 0.6; }
+  .card.is-watched .card-en { opacity: 0.5; }
+
+  .card.is-top::before {
+    content: '';
+    position: absolute; top: 0; left: 0;
+    width: 2px; height: 100%;
+    background: var(--top-accent);
+    opacity: 0.7;
+  }
+
+  .card-zh {
+    font-family: 'Noto Serif TC', serif;
+    font-size: 0.88rem;
+    font-weight: 400;
+    color: var(--text);
+    line-height: 1.4;
+    margin-bottom: 0.3rem;
+  }
+
+  .card-en {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-weight: 300;
+    line-height: 1.3;
+    font-style: italic;
+    font-family: 'Playfair Display', serif;
+  }
+
+  .card-badge {
+    display: inline-block;
+    font-size: 0.58rem; letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 2px 6px; margin-top: 0.45rem;
+    font-family: 'Inter', sans-serif; font-weight: 500;
+  }
+  .badge-watched { border: 1px solid var(--watched-border); color: var(--watched-text); }
+  .badge-top { border: 1px solid #3d2f6b; color: var(--top-accent); }
+
+  .empty { padding: 3rem 0; text-align: center; color: var(--text-muted); font-size: 0.85rem; letter-spacing: 0.05em; }
+
+  footer { border-top: 1px solid var(--border); padding: 2rem 0; margin-top: 3rem; text-align: center; font-size: 0.7rem; color: var(--text-muted); letter-spacing: 0.08em; }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+
+<div class="container">
+  <header>
+    <div class="header-top">
+      <span class="title-zh">片單</span>
+      <span class="title-en">Watchlist</span>
+    </div>
+    <p class="subtitle">朋友的電影清單 &nbsp;·&nbsp; Films, Dramas & Animation</p>
+  </header>
+
+  <div class="controls">
+    <div class="search-wrap">
+      <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg>
+      <input type="text" id="search" placeholder="Search Chinese or English..." oninput="render()">
+    </div>
+    <div class="filter-row" id="filters"></div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div id="main"></div>
+
+  <footer>片單 &nbsp;·&nbsp; For discussion purposes only</footer>
+</div>
+
+<script>
+const data = {
+  "劇情 Drama": {
+    icon: "🎞️",
+    items: [
+      ["長腿","Longlegs",false],["此心安處","Find Your Peace",false],["多哥","Togo",false],["遺忘詩篇","Forgotten Poems",false],["花漾女子","Promising Young Woman",false],["2037","2037",false],["綠光","The Green Ray",false],["芝加哥","Chicago",false],["怪物","Monster",false],["以父之名","In the Name of the Father",false],["破地獄","Break the Cycle",false],["永恆的記憶","My Imaginary Country",false],["壁花男孩","The Perks of Being a Wallflower",false],["彗星來的那一夜","Coherence",false],["水果硬糖","Hard Candy",false],["雲圖","Cloud Atlas",false],["年少日記","A Guilty Conscience",false],["蒼鷺與少年","The Boy and the Heron",false],["花月殺手","Killers of the Flower Moon",false],["悲情城市","A City of Sadness",false],["超級大國民","Super Citizen Ko",false],["燃燒烈愛","Burning",false],["生命之詩","Poetry",false],["口白人生","Stranger Than Fiction",false],["海上鋼琴師","The Legend of 1900",false],["心靈病房","Wit",false],["薄菏糖","Peppermint Candy",false],["綠洲","Oasis",false],["密陽","Secret Sunshine",false],["蝙蝠俠","Batman",false],["鳥人","Birdman",false],["貝加爾湖隱居札記","Notes from Lake Baikal",false],["夢想之地","Minari",false],["頂尖對決","The Prestige",false],["千年女優","Millennium Actress",false],["一個人的朝聖","The Way",false],["寂寞公路","Lost Highway",false],["小偷家族","Shoplifters",false],["真愛旅程","Revolutionary Road",false],["教父","The Godfather",false],["大夢想家","Saving Mr. Banks",false],["絕世英豪","Return of the King",false],["土撥鼠日","Groundhog Day",false],["藥命效應","Limitless",false],["歡樂滿人間","Mary Poppins",false],["神鬼獵人","The Revenant",false],["末日列車","Snowpiercer",false],["殺人的記憶法","Memoir of a Murderer",false],["赫爾曼•黑塞的漫長夏日","Hermann Hesse's Long Summer",false],["你是我的勇氣","Be My Courage",false],["美國美人","American Beauty",false],["我想念我自己","Still Alice",false],["羅馬假期","Roman Holiday",false],["盜夢偵探","Paprika",false],["鐵案疑雲","The Iron Case",false],["舞動人生","Billy Elliot",false],["小太陽的願望","Little Miss Sunshine",false],["令人討厭的松子的一生","Memories of Matsuko",false],["I 型起源","I Origins",false],["火線交錯","Babel",false],["心靈點滴","Patch Adams",false],["親愛的,不要跨過那條江","My Love, Don't Cross That River",false],["崩壞人生","Disintegration",false],["心靈鑰匙","Extremely Loud & Incredibly Close",false],["陪審員們","The Jurors",false],["迫在眉梢","John Q",false],["賭命運轉手","Locke",false],["紫色姐妹花","The Color Purple",false],["叛逆邊緣","The Edge of Seventeen",false],["籠民","Cageman",false],["夜半歌聲","Phantom Lover",false],["阿飛正傳","Days of Being Wild",false],["東邪西毒","Ashes of Time",false],["2046","2046",false],["旺角卡門","As Tears Go By",false],["墮落天使","Fallen Angels",false],["小美","Little Beauty",false],["一一","Yi Yi",false],["贖罪","Atonement",false],["飛越瘋人院","One Flew Over the Cuckoo's Nest",false],["終極追殺令","Léon: The Professional",false],["自由之心","12 Years a Slave",false],["香水","Perfume",false],["蝴蝶效應","The Butterfly Effect",false],["心靈捕手","Good Will Hunting",false],["大亨小傳","The Great Gatsby",false],["無人出席的告別式","A Farewell with No One",false],["教宗的承繼","The Two Popes",false],["聖蛛","Holy Spider",false],["回憶三部曲","Memory Trilogy",false],["死因未明","Cause of Death Unknown",false],["日租家庭","Rent-a-Family",false],["麥迪遜之橋","The Bridges of Madison County",false],["漂亮男孩","Beautiful Boy",false],["象人","The Elephant Man",false],["命運好好玩","Click",false],["美好的世界","A Beloved World",false],["畢業生","The Graduate",false],
+      ["罪人","The Guilty",true],["日麗","Aftersun",true],["墊底辣妹","Flying Colors",true],["媽的多重宇宙","Everything Everywhere All at Once",true],["藍色恐懼","Perfect Blue",true],["記憶拼圖","Memento",true],["總統的禮物","The President's Last Bang",true],["當他們認真編織時","Harmonium",true],["雙囍","Double Happiness",true]
+    ]
+  },
+  "愛情 Romance": {
+    icon: "💘",
+    items: [
+      ["王牌冤家","Eternal Sunshine of the Spotless Mind",true],["我破碎的真理子","My Broken Mariko",false],["當真愛來敲門","Definitely, Maybe",false],["好男好女","Good Men, Good Women",false],["失戀排行榜","High Fidelity",false],["靈魂伴侶","Soulmates",false],["月昇冒險王國","Moonrise Kingdom",false],["真愛旅程","Revolutionary Road",false],["美國情緣","An American Affair",false],["為愛朗讀","The Reader",false],["電子情書","You've Got Mail",false],["花樣年華","In the Mood for Love",false],["重慶森林","Chungking Express",false],["已是香港明日","Already Tomorrow in Hong Kong",false],["等待夢醒時分","Before Sunrise",false],["甜蜜蜜","Comrades, Almost a Love Story",false],["滾滾紅塵","Red Dust",false],["半生緣","Eighteen Springs",false],["怦然心動","Flipped",false],["我會回來找你","I'll Come Find You",false],["Love Actually","Love Actually",false],["愛的萬物論","The Theory of Everything",false],["藍宇","Lan Yu",false],["雨天·紐約","A Rainy Day in New York",false],["第六感生死緣","Ghost",false],["分手的決心","Decision to Leave",false],["春逝","One Fine Spring Day",false],["新不了情","C'est La Vie, Mon Chéri",false],["斷背山","Brokeback Mountain",false],["胭脂扣","Rouge",false],["藍色大門","Blue Gate Crossing",false],["藍色情人節","Blue Valentine",false],["盛夏光年","Eternal Summer",false],["十二夜","12 Nights",false],["第凡內早餐","Breakfast at Tiffany's",false],["羅馬假期","Roman Holiday",false],["蝴蝶君","M. Butterfly",false],["困在愛中","Stuck in Love",false],["之前的我們","Past Lives",false],["蠢蛋告別式","A Fool's Farewell",false],["美好婚姻","A Good Marriage",false]
+    ]
+  },
+  "恐怖/驚悚 Thriller": {
+    icon: "💀",
+    items: [
+      ["達文西密碼","The Da Vinci Code",true],["逃出絕命鎮","Get Out",true],["五星饗宴","The Menu",true],["異裂","Split",true],["羊男的迷宮","Pan's Labyrinth",false],["惡魔島","Papillon",false],["救命解藥","A Cure for Wellness",false],["佈局","The Setup",false],["控制","Gone Girl",false],["翻供","Recant",false],["鬼店","The Shining",false],["彗星來的那一夜","Coherence",false],["殺人回憶","Memories of Murder",false],["索多瑪的120天","Salò",false],["美國式犯罪","An American Crime",false],["厄夜變奏曲","Dogville",false],["馬拉薩尼亞32號陰宅","32 Malasaña Street",false],["大法師","The Exorcist",false],["噩夢輓歌","Requiem for a Dream",false],["食人煉獄","Cannibal Holocaust",false],["牯嶺街少年殺人事件","A Brighter Summer Day",false],["沈默的羔羊","The Silence of the Lambs",false],["入侵腦細胞","The Cell",false],["死亡醫生","Dr. Death",false],["驚魂記","Psycho",false],["晚安媽咪","Goodnight Mommy",false],["黑天鵝","Black Swan",false],["天魔","The Omen",false],["獵人遊戲","The Hunt",false]
+    ]
+  },
+  "動畫 Animation": {
+    icon: "🕹️",
+    items: [
+      ["馴龍高手","How to Train Your Dragon",true],["可可夜總會","Coco",true],["藍色恐懼","Perfect Blue",true],["腦筋急轉彎2","Inside Out 2",false],["冰雪奇緣2","Frozen 2",false],["千年女優","Millennium Actress",false]
+    ]
+  },
+  "歷史/傳記 History": {
+    icon: "📜",
+    items: [
+      ["帝國浩劫：美國內戰","Civil War",false],["聖母院大火","Notre-Dame on Fire",false],["夜與霧","Night and Fog",false],["拿破崙","Napoleon",false],["前進高棉","Platoon",false],["殺戮戰場","The Killing Fields",false],["行動代號：華爾奇麗雅","Valkyrie",false],["帝國毀滅","Downfall",false],["慕尼黑","Munich",false],["林肯","Lincoln",false],["法貝爾曼","The Fabelmans",false],["美麗人生","Life Is Beautiful",false],["漢米爾頓","Hamilton",false],["惡水真相","Dark Waters",false],["間諜橋","Bridge of Spies",false],["長日將盡","The Remains of the Day",false],["阿波羅13號","Apollo 13",false],["驚爆焦點","Spotlight",false],["打不倒的勇者","Unbroken",false],["波斯語課","Persian Lessons",false],["阿拉斯加之死","Into the Wild",false],["華爾街之狼","The Wolf of Wall Street",false],["十二怒漢","12 Angry Men",false],["謝謝你在世界的角落找到我","In This Corner of the World",false],["韓公主","Han Gong-ju",false]
+    ]
+  },
+  "喜劇 Comedy": {
+    icon: "🤡",
+    items: [
+      ["搭火車旅行好吃驚","The Grand Budapest Hotel",false],["天才一族","The Royal Tenenbaums",false],["金髮尤物","Legally Blonde",false],["命運好好玩","Click",false],["窈窕美眉","She's the Man",false],["美國之旅","Coming to America",false],["喜劇之王","The King of Comedy",false],["精靈總動員","Elf",false]
+    ]
+  },
+  "動漫 Anime": {
+    icon: "🎌",
+    items: [
+      ["航海王","One Piece",false],["獵人","Hunter × Hunter",false],["新石記","Dr. Stone",false],["間諜家家酒","Spy × Family",false],["芙莉蓮","Frieren",false],["黃金神威","Golden Kamuy",false],["排球少年","Haikyuu!!",false],["藥師少女的獨語","The Apothecary Diaries",false],["地","Chi: Earth's Moving Creatures",true],["86不存在的戰區","86 — Eighty Six",false],["來自深淵","Made in Abyss",false],["藍色時期","Blue Period",false],["進擊的巨人","Attack on Titan",false],["鬼滅之刃","Demon Slayer",false],["今際之國的闖關者","Alice in Borderland",false],["被贈與的未來","Given",false],["初戀","First Love",false],["月薪嬌妻","Tada Never Falls in Love",false]
+    ]
+  },
+  "韓劇 K-Drama": {
+    icon: "🇰🇷",
+    items: [
+      ["退貨兒童","Returned Children",false],["我們的電影","Our Film",false],
+      ["皮諾丘","Pinocchio",true],["浪漫醫生","Romantic Doctor",true],["機智的醫生生活","Hospital Playlist",true],["軍檢察官","Military Prosecutor Doberman",true],["機智的監獄生活","Prison Playbook",true],["模範計程車","Taxi Driver",true],["Voice","Voice",true],["德魯納酒店","Hotel Del Luna",true],["信號","Signal",true],["繼承者們","The Heirs",true],["偶然發現的一天","Extraordinary You",true],["都奉順","Strong Girl Bong-soon",true],["愛的迫降","Crash Landing on You",true],["太陽的後裔","Descendants of the Sun",true],["非常律師","Extraordinary Attorney Woo",true],["沒關係是愛情","It's Okay, That's Love",true],["我的ID是江南美人","My ID Is Gangnam Beauty",true],["殭屍校園","All of Us Are Dead",true],["王后傘下","Under the Queen's Umbrella",true],["鬼怪","Goblin",true],["舉重妖精","Weightlifting Fairy Kim Bok-joo",true],["惡鬼","Revenant",true],["海岸村恰恰恰","Hometown Cha-Cha-Cha",true],["主君的太陽","Master's Sun",true],["當你沉睡時","While You Were Sleeping",true],["女神降臨","True Beauty",true],["酒鬼都市女人","Work Later, Drink Now",true],["少年法庭","Juvenile Justice",true],["我是遺物整理師","Move to Heaven",true],["金秘書為何那樣","What's Wrong with Secretary Kim",true],["黑暗榮耀","The Glory",true],["以吾之名","My Name",true],["假面女郎","Mask Girl",true],["死期將至","The Killing Vote",true],["熱血司祭1","Hot-Blooded Priest",true],["外傷重症中心","Trauma Center",true],["苦盡甘來遇見你","My Lovely Liar",true],["你和剩餘的一切","You and Everything",true],["聽見你的謊言","Lies Hidden in My Garden",true],["愛情怎麼翻譯","Twenty-Five Twenty-One",true],["黑暗榮耀","The Glory",true],["逃兵追緝令","D.P.",true],["柔美的細胞小將","Yumi's Cells",true]
+    ]
+  },
+  "美劇 US Drama": {
+    icon: "🇺🇸",
+    items: [
+      ["大熊餐廳","The Bear",false],["梅爾羅斯","Patrick Melrose",false],["貝茲旅館","Bates Motel",false],["小鎮主婦的愛與死","Love & Death",false],["妙女神探","Monk",false],["我們這一天","This Is Us",false],["小學風雲","Abbott Elementary",false],["絕命律師","Better Call Saul",false],["Off Campus","Off Campus",true]
+    ]
+  },
+  "日劇 J-Drama": {
+    icon: "🇯🇵",
+    items: [
+      ["九界線","Nine Boundary Lines",false],["光逝去的夏天","Summer Ghost",false],["孤獨死又怎樣","Solitary Death",false],["四重奏","Quartet",false],["法醫女王","Queen of the Court",false],["重啟人生","Restart Life",true],["GIVIN 被贈與的未來","Given",true]
+    ]
+  },
+  "⭐ TOP 片單 Top Picks": {
+    icon: "⭐",
+    isTop: true,
+    items: [
+      ["俘虜","Merry Christmas, Mr. Lawrence",false],["刺激1995","The Shawshank Redemption",false],["完美日子","Perfect Days",false],["千萬別抬頭","Don't Look Up",false],["阿甘正傳","Forrest Gump",false],["歡迎來到布達佩斯大飯店","The Grand Budapest Hotel",false],["辛德勒的名單","Schindler's List",false],["搶救雷恩大兵","Saving Private Ryan",false],["遊牧人生","Nomadland",false],["奧本海默","Oppenheimer",false],["春光乍洩","Happy Together",false],["霸王別姬","Farewell My Concubine",false],["寂寞拍賣師","The Best Offer",false],["末代皇帝","The Last Emperor",false],["王牌冤家","Eternal Sunshine of the Spotless Mind",false],["鐵達尼號","Titanic",false],["西線無戰事","All Quiet on the Western Front",false],["悲慘世界","Les Misérables",false],["白日夢冒險王","The Secret Life of Walter Mitty",false],["法蘭西派特週報","The French Dispatch",false],["Inception","Inception",false],["Marriage Story","Marriage Story",false],["The Whale","The Whale",false],["星際效應","Interstellar",false],["海邊的曼徹斯特","Manchester by the Sea",false],["再見機器人","Robot Dreams",false],["媽的多重宇宙","Everything Everywhere All at Once",false]
+    ]
+  },
+  "看過 Already Seen": {
+    icon: "✅",
+    items: [
+      ["蜘蛛人：穿越新宇宙","Spider-Man: Across the Spider-Verse",true],["再見機器人","Robot Dreams",true],["鬥陣俱樂部","Fight Club",true],["雲端情人","Her",true],["情書","Love Letter",true],["絕殺令","No Country for Old Men",true],["小行星城","Asteroid City",true],["鋼鐵英雄","Hacksaw Ridge",true],["穿著Prada的惡魔","The Devil Wears Prada",true],["初戀那件小事","A Little Thing Called Love",true],["貧民百萬富翁","Slumdog Millionaire",true],["白日夢冒險王","The Secret Life of Walter Mitty",true],["他們先殺了我父親","First They Killed My Father",true],["瀑布","The Falls",true],["無境之獸","Beasts of No Nation",true],["戰地琴人","The Pianist",true],["隔離島","Shutter Island",true],["寄生上流","Parasite",true],["我只是個計程車司機","A Taxi Driver",true],["小姐好白","The Handmaiden",true],["費城","Philadelphia",true],["楚門的世界","The Truman Show",true],["富都青年","Bade of Kuala Lumpur",true],["花束般的戀愛","A Bouquet of Love",true],["真愛每一天","About Time",true],["西雅圖夜未眠","Sleepless in Seattle",true]
+    ]
+  }
+};
+
+const cats = Object.keys(data);
+let activeCat = "all";
+let showWatched = true;
+
+function buildFilters() {
+  const el = document.getElementById("filters");
+  const all = document.createElement("button");
+  all.className = "pill active"; all.textContent = "All";
+  all.onclick = () => { activeCat = "all"; setActive(all); render(); };
+  el.appendChild(all);
+
+  cats.forEach(cat => {
+    const btn = document.createElement("button");
+    btn.className = "pill";
+    btn.textContent = cat;
+    btn.onclick = () => { activeCat = cat; setActive(btn); render(); };
+    el.appendChild(btn);
+  });
+
+  const wbtn = document.createElement("button");
+  wbtn.className = "pill pill-watched active"; wbtn.id = "wbtn";
+  wbtn.textContent = "✓ Watched";
+  wbtn.onclick = () => { showWatched = !showWatched; wbtn.classList.toggle("active", showWatched); render(); };
+  el.appendChild(wbtn);
+}
+
+function setActive(el) {
+  document.querySelectorAll(".pill:not(.pill-watched)").forEach(b => b.classList.remove("active"));
+  el.classList.add("active");
+}
+
+function render() {
+  const q = document.getElementById("search").value.toLowerCase();
+  const main = document.getElementById("main");
+  main.innerHTML = "";
+  let total = 0;
+
+  const toRender = activeCat === "all" ? cats : [activeCat];
+
+  toRender.forEach(cat => {
+    const def = data[cat];
+    const items = def.items.filter(([zh, en, watched]) => {
+      if (!showWatched && watched) return false;
+      if (q && !zh.toLowerCase().includes(q) && !en.toLowerCase().includes(q)) return false;
+      return true;
+    });
+    if (!items.length) return;
+    total += items.length;
+
+    const sec = document.createElement("section");
+    sec.innerHTML = `<div class="section-header"><span class="section-name">${def.icon} ${cat}</span><span class="section-count">${items.length}</span></div>`;
+    const grid = document.createElement("div"); grid.className = "grid";
+
+    items.forEach(([zh, en, watched]) => {
+      const card = document.createElement("div");
+      card.className = "card" + (watched ? " is-watched" : "") + (def.isTop ? " is-top" : "");
+      card.innerHTML = `<div class="card-zh">${zh}</div><div class="card-en">${en}</div>` +
+        (watched ? `<span class="card-badge badge-watched">seen</span>` : "") +
+        (def.isTop && !watched ? `<span class="card-badge badge-top">top pick</span>` : "");
+      grid.appendChild(card);
+    });
+
+    sec.appendChild(grid);
+    main.appendChild(sec);
+  });
+
+  document.getElementById("stats").textContent = `${total} titles`;
+  if (!total) main.innerHTML = '<div class="empty">No titles found.</div>';
+}
+
+buildFilters();
+render();
+</script>
+</body>
+</html>
